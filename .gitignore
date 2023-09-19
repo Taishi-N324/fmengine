@@ -13,3 +13,6 @@ scripts/hostfiles
 *.sif
 .triton
 **/*/*_slurm.sh
+hostfile
+
+*log.out

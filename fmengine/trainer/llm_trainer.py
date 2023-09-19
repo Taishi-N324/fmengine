@@ -60,10 +60,10 @@ class LLMTrainer:
         engine.optimizer.refresh_fp32_params()
         if profile:
             prof = FlopsProfiler(self.model)
-        start = time.time()
         for step in range(1, steps + 1):
             if profile and step % profile_step == 0:
                 prof.start_profile()
+            start = time.time()
             loss = engine.train_batch(data_iter=self.dataloader)
             rank0_log({
                 "loss": loss.item(),
@@ -84,3 +84,4 @@ class LLMTrainer:
         logger_rank0.info("Finished training... saving checkpoints & closing monitoring")
         engine.save_checkpoint(self.save_dir)
         wandb.finish()
+
