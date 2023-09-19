@@ -60,18 +60,6 @@ class LLMTrainer:
         engine.optimizer.refresh_fp32_params()
         if profile:
             prof = FlopsProfiler(self.model)
-<<<<<<< HEAD
-        for step in range(1, steps + 1):
-            if profile and step % profile_step == 0:
-                prof.start_profile()
-            start = time.time()
-            loss = engine.train_batch(data_iter=self.dataloader)
-            rank0_log({
-                "loss": loss.item(),
-                "lr": engine.optimizer.param_groups[0]["lr"],
-                "step": step,
-            })
-=======
         
         for step in range(1, steps + 1):
             if profile and step % profile_step == 0:
@@ -81,7 +69,6 @@ class LLMTrainer:
                 data_iter=self.dataloader
             )
             end = timer()
->>>>>>> taishi/init
             if self.ds_args.local_rank == 0:
                 [cb(end-start, step, loss, configs, engine) for cb in self.callbacks]
                 if profile and step == profile_step:
