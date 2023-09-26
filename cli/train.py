@@ -11,6 +11,7 @@ from fmengine.utils import jload
 from fmengine.trainer.llm_trainer import LLMTrainer
 from fmengine.modeling._common.model import get_model
 from fmengine.dataloader.jsonl_loader import get_jsonl_dataloader
+from fmengine.dataloader.streaming_loader import get_streaming_dataloader
 from munch import munchify
 from fmengine.utils.megatron import initialize_megatron
 from fmengine.modeling.llama.patching import patch_llama
@@ -120,7 +121,16 @@ if __name__ == "__main__":
     )
     model_config = transformers.AutoConfig.from_pretrained(model_args.init_ckpt)
 
-    train_dataloader = get_jsonl_dataloader(
+    # train_dataloader = get_jsonl_dataloader(
+    #     data_args.data_path,
+    #     tokenizer=tokenizer,
+    #     args={
+    #         "seq_length": trainer_args.max_seq_len,
+    #         "batch_size": data_args.batch_size,
+    #     },
+    # )
+    # get_streaming_dataloader
+    train_dataloader = get_streaming_dataloader(
         data_args.data_path,
         tokenizer=tokenizer,
         args={
@@ -131,6 +141,8 @@ if __name__ == "__main__":
 
     _tmp = torch.nn.Linear.reset_parameters
     torch.nn.Linear.reset_parameters = lambda x: None
+    print("model_config")
+    print(model_config)
     model = get_model(model_config, ds_args, activation_checkpointing_config)
 
     if ds_config.get("precision", "bfloat16"):
