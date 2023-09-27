@@ -1,17 +1,18 @@
-import time
 import wandb
 import deepspeed
 from typing import Dict
 from deepspeed.pipe import PipelineModule
-from fmengine.utils import logger_rank0
-from fmengine.utils.monitor import rank0_init_wandb, rank0_log
 from deepspeed.profiling.flops_profiler import FlopsProfiler
-from torch.profiler import ProfilerActivity, profile as torch_profile
+from fmengine.utils import logger_rank0
+from fmengine.utils.monitor import rank0_init_wandb
+from timeit import default_timer as timer
+
 
 class LLMTrainer:
     """
     LLM Trainer
     """
+
     def __init__(
         self,
         model: PipelineModule,
@@ -20,8 +21,9 @@ class LLMTrainer:
         ds_config: Dict,
         init_ckpt: str = None,
         save_dir: str = None,
-        pretrain:bool = False,
-        callbacks: list = []
+        pretrain: bool = False,
+        load_module_strict: bool = True,
+        callbacks: list = [],
     ) -> None:
         self.ds_args = ds_args
         self.model = model
@@ -31,19 +33,21 @@ class LLMTrainer:
         self.ds_config = ds_config
         self.pretrain = pretrain
         self.callbacks = callbacks
+        self.load_module_strict = load_module_strict
+
     def fit(
         self,
         steps: int,
         profile: bool = True,
         save_per_steps: int = 100,
-        profile_step = 10,
-        project='fmengine',
+        profile_step=10,
+        project="fmengine",
         configs: dict = None,
     ):
         rank0_init_wandb(
             # set the wandb project where this run will be logged
             project=project,
-            config = configs
+            config=configs,
         )
         # print("Trainable params:", sum([p.numel() for p in params]))
         engine, _, _, _ = deepspeed.initialize(
@@ -55,33 +59,35 @@ class LLMTrainer:
             engine.load_checkpoint(
                 self.init_ckpt,
                 load_module_only=True,
-                load_optimizer_states=False
+                load_optimizer_states=False,
+                load_module_strict=self.load_module_strict,
             )
         engine.optimizer.refresh_fp32_params()
         if profile:
             prof = FlopsProfiler(self.model)
         for step in range(1, steps + 1):
-            if profile and step % profile_step == 0:
+            if profile and step == profile_step:
                 prof.start_profile()
+<<<<<<< HEAD
             start = time.time()
+=======
+            start = timer()
+>>>>>>> 209ab9141711a452173e1587497e50ed07aa63b2
             loss = engine.train_batch(data_iter=self.dataloader)
-            rank0_log({
-                "loss": loss.item(),
-                "lr": engine.optimizer.param_groups[0]["lr"],
-                "step": step,
-            })
+            end = timer()
             if self.ds_args.local_rank == 0:
-                for cb in self.callbacks:
-                    cb(time.time() - start, step, loss, configs)
+                [cb(end - start, step, loss, configs, engine) for cb in self.callbacks]
                 if profile and step == profile_step:
                     prof.stop_profile()
                     prof.print_model_profile(profile_step=profile_step)
                     prof.end_profile()
+                    del prof
             if step % save_per_steps == 0:
                 logger_rank0.info(f"Saving at step {step}")
                 engine.save_checkpoint(self.save_dir)
-        
-        logger_rank0.info("Finished training... saving checkpoints & closing monitoring")
+        logger_rank0.info(
+            "Finished training... saving checkpoints & closing monitoring"
+        )
         engine.save_checkpoint(self.save_dir)
         wandb.finish()
 

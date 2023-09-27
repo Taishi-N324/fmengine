@@ -1,15 +1,15 @@
 import copy
 import torch
 import deepspeed
-from itertools import cycle
-from datasets import load_dataset
-from tokenizers import Tokenizer
-from torch.utils.data import IterableDataset
 import transformers
-from typing import Dict, List
 from dataclasses import dataclass
+from datasets import load_dataset
+from itertools import chain
+from torch.utils.data.dataloader import DataLoader
+from typing import Dict, List
 
 from fmengine.utils import logger_rank0 as logger
+
 
 @dataclass
 class AutoregressiveLanguageModelDataCollator(object):
@@ -19,7 +19,7 @@ class AutoregressiveLanguageModelDataCollator(object):
 
     tokenizer: transformers.PreTrainedTokenizer
     ignore_index: int = -100
-    
+
     def get_attn_mask(self, input_ids):
         """
         Get triangular attention mask for a given sequence length / device.
@@ -46,7 +46,6 @@ class AutoregressiveLanguageModelDataCollator(object):
         # https://d2l.ai/chapter_recurrent-neural-networks/language-model.html#learning-language-models
         input_ids = [input_id[:-1] for input_id in input_ids]
         labels = [label[1:] for label in labels]
-
         input_ids = torch.stack(input_ids)
         labels = torch.stack(labels)
         labels = torch.where(
@@ -61,57 +60,35 @@ class AutoregressiveLanguageModelDataCollator(object):
             labels,
         )
 
-class JSONLDataset(IterableDataset):
-    def __init__(self,
-                 data,
-                 tokenizer: Tokenizer,
-                 seq_length: int, 
-                 doc_sep='\n'
-                ) -> None:
-        self.data = data
-        self.tokenizer = tokenizer
-        self.seq_length = seq_length + 1 # additional 1 for shifting
-        self.doc_sep = doc_sep
-        self.field = 'text'
-        self.it = None
-        self.iter_count = 0
-        self.buffer_tokens = []
-        self._len = -1
-    
-    def state_dict(self):
-        return {
-            'iter_count': self.iter_count,
-            'buffer_tokens': self.buffer_tokens,
+
+def get_jsonl_dataloader(jsonl_path, tokenizer, args):
+    data_collator = AutoregressiveLanguageModelDataCollator(tokenizer)
+    ctx_length = args.get("seq_length", 1024) + 1  # +1 for shifting
+    streaming = args.get("streaming", False)
+    seed = args.get("seed", 3407)
+    batch_size = args.get("batch_size", 1)
+
+    def tokenize(examples):
+        examples = tokenizer(examples["text"], truncation=True, max_length=ctx_length)
+        concatenated_examples = {k: list(chain(*examples[k])) for k in examples.keys()}
+        total_length = len(concatenated_examples[list(examples.keys())[0]])
+        if total_length >= ctx_length:
+            total_length = (total_length // ctx_length) * ctx_length
+        result = {
+            k: [t[i : i + ctx_length] for i in range(0, total_length, ctx_length)]
+            for k, t in concatenated_examples.items()
         }
+        return result
 
-    def load_state_dict(self, state_dict):
-        self.iter_count = state_dict['iter_count']
-        self.buffer_tokens = state_dict['buffer_tokens']
-        self.data = self.data.skip(self.iter_count)
-    
-    def get_sequence(self):
-        buffer_tokens = self.buffer_tokens
-        while True:
-            try:
-                for x in self.data:
-                    self.iter_count += 1
-                    curr_tokens = self.tokenizer(self.doc_sep + x['text'])['input_ids']
-                    buffer_tokens += curr_tokens
-                    while len(buffer_tokens) >= self.seq_length:
-                        tokens = buffer_tokens[:self.seq_length]
-                        buffer_tokens = buffer_tokens[self.seq_length:]
-                        input_ids = torch.tensor(tokens)
-                        self.buffer_tokens = buffer_tokens
-                        yield {
-                            'input_ids': input_ids,
-                        }
-            except Exception as e:
-                print("next epoch")
-                pass
+    raw_datasets = load_dataset(
+        "json", split="train", data_files=jsonl_path, streaming=streaming
+    ).shuffle(seed=seed)
 
-    def get_stream(self):
-        return cycle(self.get_sequence())
+    raw_datasets = raw_datasets.map(
+        tokenize, batched=True, remove_columns=raw_datasets.column_names
+    ).with_format("torch")
 
+<<<<<<< HEAD
     def __iter__(self):
         if self.it is None:
             self.it = self.get_stream()
@@ -151,3 +128,9 @@ def get_jsonl_dataloader(
         collate_fn = collator
     )
     return iter(deepspeed.utils.RepeatingLoader(train_data_loader))
+=======
+    dataloader = DataLoader(
+        raw_datasets, shuffle=False, collate_fn=data_collator, batch_size=batch_size
+    )
+    return iter(deepspeed.utils.RepeatingLoader(dataloader))
+>>>>>>> 209ab9141711a452173e1587497e50ed07aa63b2

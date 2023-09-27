@@ -7,4 +7,4 @@ singularity run --nv \
 --bind $PWD:/workspace \
 --pwd /workspace \
 fmsys.sif \
-bash scripts/finetune/finetune_llama_7b.sh
+bash scripts/finetune/finetune_llama_3b.sh
