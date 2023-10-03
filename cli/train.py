@@ -16,7 +16,7 @@ from fmengine.utils.megatron import initialize_megatron
 from fmengine.modeling.llama.patching import patch_llama
 from fmengine.modeling.neox.flash_attention import replace_neox_attn_with_flash_attn
 from fmengine.callbacks.monitor import speed_monitor, wandb_monitor
-
+import wandb
 
 def read_ds_config(config_path):
     config = jload(config_path)
@@ -101,6 +101,7 @@ if __name__ == "__main__":
         // ds_args.model_parallel_size
     )
 
+
     data_args.batch_size = ds_config.get("train_micro_batch_size_per_gpu", 1)
     activation_checkpointing_config = ds_config.pop("activation_checkpointing", None)
 
@@ -129,7 +130,6 @@ if __name__ == "__main__":
             "batch_size": data_args.batch_size,
         },
     )
-
     _tmp = torch.nn.Linear.reset_parameters
     torch.nn.Linear.reset_parameters = lambda x: None
     model = get_model(model_config, ds_args, activation_checkpointing_config)
@@ -159,6 +159,7 @@ if __name__ == "__main__":
         ds_args=ds_args,
         dataloader=train_dataloader,
         ds_config=ds_config,
+        model_config=model_config,
         init_ckpt=model_args.init_ckpt,
         save_dir=trainer_args.output_dir,
         pretrain=trainer_args.pretrain,
@@ -170,5 +171,5 @@ if __name__ == "__main__":
         profile=ds_args.deepspeed_config.flops_profiler.enabled,
         save_per_steps=trainer_args.save_steps,
         configs=merged_configs,
-        project='fmzip-llama'
+        project='fmengine',
     )

@@ -19,6 +19,7 @@ class LLMTrainer:
         ds_args: Dict,
         dataloader: Dict,
         ds_config: Dict,
+        model_config,
         init_ckpt: str = None,
         save_dir: str = None,
         pretrain: bool = False,
@@ -31,6 +32,7 @@ class LLMTrainer:
         self.init_ckpt = init_ckpt
         self.save_dir = save_dir
         self.ds_config = ds_config
+        self.model_config = model_config
         self.pretrain = pretrain
         self.callbacks = callbacks
         self.load_module_strict = load_module_strict
@@ -47,7 +49,9 @@ class LLMTrainer:
         rank0_init_wandb(
             # set the wandb project where this run will be logged
             project=project,
+            entity="ontocord",
             config=configs,
+            mode="offline"
         )
         # print("Trainable params:", sum([p.numel() for p in params]))
         engine, _, _, _ = deepspeed.initialize(
@@ -68,15 +72,11 @@ class LLMTrainer:
         for step in range(1, steps + 1):
             if profile and step == profile_step:
                 prof.start_profile()
-<<<<<<< HEAD
-            start = time.time()
-=======
             start = timer()
->>>>>>> 209ab9141711a452173e1587497e50ed07aa63b2
             loss = engine.train_batch(data_iter=self.dataloader)
             end = timer()
             if self.ds_args.local_rank == 0:
-                [cb(end - start, step, loss, configs, engine) for cb in self.callbacks]
+                [cb(end - start, step, loss, configs, engine, self.model_config) for cb in self.callbacks]
                 if profile and step == profile_step:
                     prof.stop_profile()
                     prof.print_model_profile(profile_step=profile_step)
