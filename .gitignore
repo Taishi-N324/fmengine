@@ -13,10 +13,7 @@ scripts/hostfiles
 *.sif
 .triton
 **/*/*_slurm.sh
-<<<<<<< HEAD
 hostfile
 
 *log.out
-=======
 my_scripts/
->>>>>>> 209ab9141711a452173e1587497e50ed07aa63b2
