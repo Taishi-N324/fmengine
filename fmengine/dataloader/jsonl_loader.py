@@ -68,6 +68,10 @@ def get_jsonl_dataloader(jsonl_path, tokenizer, args):
     seed = args.get("seed", 42)
     batch_size = args.get("batch_size", 1)
 
+    print("-------call get_jsonl_dataloader-------------")
+    print("-------call get_jsonl_dataloader batch_size-------------",batch_size)
+    print("-------call get_jsonl_dataloader ctx_length-------------",ctx_length)
+
     def tokenize(examples):
         examples = tokenizer(
             examples["text"],
@@ -92,49 +96,7 @@ def get_jsonl_dataloader(jsonl_path, tokenizer, args):
         tokenize, batched=True, remove_columns=raw_datasets.column_names
     ).with_format("torch")
 
-<<<<<<< HEAD
-    def __iter__(self):
-        if self.it is None:
-            self.it = self.get_stream()
-        return self.it
-
-def get_jsonl_dataloader(
-            path_to_jsonl_file: str,
-            tokenizer: Tokenizer,
-            num_workers = 0,
-            state_dict = None,
-            streaming = False,
-            args = None
-        ):
-    seed = args.get('seed', 3407)
-    seq_length = args.get('seq_length', 1024)
-    batch_size = args.get('batch_size', 1)
-    data_group_size = args.get('data_group_size', 1)
-    shuffle = args.get('shuffle', False)
-    data = load_dataset(
-            'json',
-            split='train',
-            data_files=path_to_jsonl_file,
-            streaming=streaming
-        ).shuffle(seed=seed).with_format('torch')
-    
-    stream_dataset = JSONLDataset(data, tokenizer, seq_length)
-    collator = AutoregressiveLanguageModelDataCollator(tokenizer)
-    if state_dict:
-        stream_dataset.load_state_dict(state_dict)
-
-    train_data_loader = torch.utils.data.DataLoader(
-        stream_dataset,
-        batch_size = batch_size * data_group_size,
-        shuffle = shuffle,
-        num_workers = num_workers,
-        pin_memory = False,
-        collate_fn = collator
-    )
-    return iter(deepspeed.utils.RepeatingLoader(train_data_loader))
-=======
     dataloader = DataLoader(
         raw_datasets, shuffle=False, collate_fn=data_collator, batch_size=batch_size
     )
     return iter(deepspeed.utils.RepeatingLoader(dataloader))
->>>>>>> 209ab9141711a452173e1587497e50ed07aa63b2
